@@ -77,7 +77,10 @@ class AutoAttack():
     def get_seed(self):
         return time.time() if self.seed is None else self.seed
     
-    def run_standard_evaluation(self, x_orig, y_orig, bs=250, return_labels=False):
+    def run_standard_evaluation(self, x_orig, y_orig, bs=250, return_labels=True, target_label=None):
+
+        assert target_label is None or self.attacks_to_run == ['apgd-t']
+
         if self.verbose:
             print('using {} version including {}'.format(self.version,
                 ', '.join(self.attacks_to_run)))
@@ -170,8 +173,11 @@ class AutoAttack():
                     
                     elif attack == 'apgd-t':
                         # targeted apgd
+                        self.apgd_targeted.n_restarts = 10
                         self.apgd_targeted.seed = self.get_seed()
-                        adv_curr = self.apgd_targeted.perturb(x, y) #cheap=True
+
+                        # this function is called, pass target label here
+                        adv_curr = self.apgd_targeted.perturb(x, y, y_target=target_label) #cheap=True
                     
                     elif attack == 'fab-t':
                         # fab targeted
@@ -235,7 +241,7 @@ class AutoAttack():
         
         return acc.item() / x_orig.shape[0]
         
-    def run_standard_evaluation_individual(self, x_orig, y_orig, bs=250, return_labels=False):
+    def run_standard_evaluation_individual(self, x_orig, y_orig, bs=250, return_labels=False, target_label=None):
         if self.verbose:
             print('using {} version including {}'.format(self.version,
                 ', '.join(self.attacks_to_run)))
@@ -248,7 +254,7 @@ class AutoAttack():
         for c in l_attacks:
             startt = time.time()
             self.attacks_to_run = [c]
-            x_adv, y_adv = self.run_standard_evaluation(x_orig, y_orig, bs=bs, return_labels=True)
+            x_adv, y_adv = self.run_standard_evaluation(x_orig, y_orig, bs=bs, return_labels=True, target_label=target_label)
             if return_labels:
                 adv[c] = (x_adv, y_adv)
             else:

@@ -107,7 +107,7 @@ class APGDAttack():
             predict,
             n_iter=100,
             norm='Linf',
-            n_restarts=1,
+            n_restarts=10,
             eps=None,
             seed=0,
             loss='ce',
@@ -206,7 +206,7 @@ class APGDAttack():
             1. - ind)) / (x_sorted[:, -1] - x_sorted[:, -3] + 1e-12)
 
     #
-    
+
     def attack_single_run(self, x, y, x_init=None):
         if len(x.shape) < self.ndims:
             x = x.unsqueeze(0)
@@ -224,17 +224,12 @@ class APGDAttack():
             t = torch.randn(x.shape).to(self.device).detach()
             delta = L1_projection(x, t, self.eps)
             x_adv = x + t + delta
-            
-        
-        
-        
-        
+
         if not x_init is None:
             x_adv = x_init.clone()
             if self.norm == 'L1' and self.verbose:
                 print('[custom init] L1 perturbation {:.5f}'.format(
                     (x_adv - x).abs().view(x.shape[0], -1).sum(1).max()))
-            
         
         x_adv = x_adv.clamp(0., 1.)
         x_best = x_adv.clone()
@@ -268,8 +263,7 @@ class APGDAttack():
                 criterion_indiv = self.model.get_logits_loss_grad_target
             else:
                 raise ValueError('unknowkn loss')
-        
-        
+
         x_adv.requires_grad_()
         grad = torch.zeros_like(x)
         for _ in range(self.eot_iter):
@@ -294,8 +288,9 @@ class APGDAttack():
         if self.loss in ['dlr', 'dlr-targeted']:
             # check if there are zero gradients
             check_zero_gradients(grad, logger=self.logger)
-        
-        acc = logits.detach().max(1)[1] == y
+
+        # acc = logits.detach().max(1)[1] == y
+        acc = logits.detach().max(1)[1] != self.y_target
         acc_steps[0] = acc + 0
         loss_best = loss_indiv.detach().clone()
 
@@ -389,7 +384,7 @@ class APGDAttack():
             
             grad /= float(self.eot_iter)
 
-            pred = logits.detach().max(1)[1] == y
+            pred = logits.detach().max(1)[1] != self.y_target
             acc = torch.min(acc, pred)
             acc_steps[i + 1] = acc + 0
             ind_pred = (pred == 0).nonzero().squeeze()
@@ -614,12 +609,11 @@ class APGDAttack_targeted(APGDAttack):
         return -1. * F.cross_entropy(x, self.y_target, reduction='none')
     
     
-    def perturb(self, x, y=None, x_init=None):
+    def perturb(self, x, y=None, x_init=None, y_target=None):
         """
         :param x:           clean images
         :param y:           clean labels, if None we use the predicted labels
         """
-
         assert self.loss in ['dlr-targeted'] #'ce-targeted'
         if not y is None and len(y.shape) == 0:
             x.unsqueeze_(0)
@@ -662,8 +656,10 @@ class APGDAttack_targeted(APGDAttack):
             if self.verbose:
                 print('using schedule [{}x{}]'.format('+'.join([str(c
                     ) for c in epss]), '+'.join([str(c) for c in iters])))
-        
-        for target_class in range(2, self.n_target_classes + 2):
+
+        target_classes_upper = self.n_target_classes + 2 if y_target is None else 3
+
+        for target_class in range(2, target_classes_upper):
             for counter in range(self.n_restarts):
                 ind_to_fool = acc.nonzero().squeeze()
                 if len(ind_to_fool.shape) == 0:
@@ -676,7 +672,11 @@ class APGDAttack_targeted(APGDAttack):
                         output = self.model(x_to_fool)
                     else:
                         output = self.model.predict(x_to_fool)
-                    self.y_target = output.sort(dim=1)[1][:, -target_class]
+
+                    if y_target is None:
+                        self.y_target = output.sort(dim=1)[1][:, -target_class]
+                    else:
+                        self.y_target = y_target
 
                     if not self.use_largereps:
                         res_curr = self.attack_single_run(x_to_fool, y_to_fool)
@@ -684,7 +684,6 @@ class APGDAttack_targeted(APGDAttack):
                         res_curr = self.decr_eps_pgd(x_to_fool, y_to_fool, epss, iters)
                     best_curr, acc_curr, loss_curr, adv_curr = res_curr
                     ind_curr = (acc_curr == 0).nonzero().squeeze()
-
                     acc[ind_to_fool[ind_curr]] = 0
                     adv[ind_to_fool[ind_curr]] = adv_curr[ind_curr].clone()
                     if self.verbose:
