@@ -15,6 +15,25 @@ import random
 from autoattack.other_utils import L0_norm, L1_norm, L2_norm
 from autoattack.checks import check_zero_gradients
 
+def find_closest_value(input_value, input_array=torch.tensor([0.0, 1 / 3, 2 / 3, 1.0])):
+    distances = input_array - input_value
+    distances = torch.abs(distances)
+    closest_value = input_array[torch.argwhere(distances == torch.min(distances))].item()
+
+    return closest_value
+
+def round_values(inp_tensor):
+
+    assert len(inp_tensor.shape) == 4
+
+    for dim0 in range(inp_tensor.shape[0]):
+        for dim1 in range(inp_tensor.shape[1]):
+            for dim2 in range(inp_tensor.shape[2]):
+                for dim3 in range(inp_tensor.shape[3]):
+                    inp_tensor[dim0, dim1, dim2, dim3] = find_closest_value(inp_tensor[dim0, dim1, dim2, dim3])
+
+    return inp_tensor
+
 
 def L1_projection(x2, y2, eps1):
     '''
@@ -230,8 +249,13 @@ class APGDAttack():
             if self.norm == 'L1' and self.verbose:
                 print('[custom init] L1 perturbation {:.5f}'.format(
                     (x_adv - x).abs().view(x.shape[0], -1).sum(1).max()))
-        
+
         x_adv = x_adv.clamp(0., 1.)
+
+
+        # TODO round x_adv here
+        x_adv = round_values(x_adv)
+
         x_best = x_adv.clone()
         x_best_adv = x_adv.clone()
         loss_steps = torch.zeros([self.n_iter, x.shape[0]]
@@ -361,8 +385,10 @@ class APGDAttack():
                     delta_p = L1_projection(x, delta_u, self.eps)
                     x_adv_1 = x + delta_u + delta_p
                     
-                    
+
+                # TODO round x_adv here
                 x_adv = x_adv_1 + 0.
+                x_adv = round_values(x_adv)
 
             ### get gradient
             x_adv.requires_grad_()
