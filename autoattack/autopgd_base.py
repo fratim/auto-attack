@@ -313,6 +313,7 @@ class APGDAttack():
             # check if there are zero gradients
             check_zero_gradients(grad, logger=self.logger)
 
+        # TODO made changes here to make this a targeted attack
         # acc = logits.detach().max(1)[1] == y
         acc = logits.detach().max(1)[1] != self.y_target
         acc_steps[0] = acc + 0
@@ -410,7 +411,9 @@ class APGDAttack():
             
             grad /= float(self.eot_iter)
 
+            # TODO made change shere to make attack targeted
             pred = logits.detach().max(1)[1] != self.y_target
+            # pred = logits.detach().max(1)[1] == y
             acc = torch.min(acc, pred)
             acc_steps[i + 1] = acc + 0
             ind_pred = (pred == 0).nonzero().squeeze()
