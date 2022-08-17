@@ -48,7 +48,9 @@ class FABAttack():
             seed=0,
             targeted=False,
             device=None,
-            n_target_classes=9):
+            n_target_classes=9,
+            clamp_limits=(0, 1),
+            attack_dimensions=None):
         """ FAB-attack implementation in pytorch """
 
         self.norm = norm
@@ -64,6 +66,25 @@ class FABAttack():
         self.target_class = None
         self.device = device
         self.n_target_classes = n_target_classes
+        self.clamp_limits = clamp_limits
+        self.attack_dimensions = attack_dimensions
+
+    def apply_mask(self, x_perturbed, x):
+
+        assert len(x_perturbed.shape) == 4
+
+        if self.attack_dimensions is None:
+            return x_perturbed
+
+        import pdb
+        pdb.set_trace()
+        # TODO make this more efficient, this should be a one liner...
+
+        for dim in range(x_perturbed.shape[1]):
+            if dim not in self.attack_dimensions:
+                x_perturbed[0, dim, :, :] = x[0, dim, :, :]
+
+        return x_perturbed
 
     def check_shape(self, x):
         return x if len(x.shape) > 0 else x.unsqueeze(0)
@@ -158,7 +179,8 @@ class FABAttack():
                                         .sum(dim=-1)
                                         .view(t.shape[0], *[1]*self.ndims)) / 2
 
-            x1 = x1.clamp(0.0, 1.0)
+            # x1 = x1.clamp(0.0, 1.0)
+            x1 = x1.clamp(*self.clamp_limits)
 
         counter_iter = 0
         while counter_iter < self.n_iter:
@@ -223,8 +245,10 @@ class FABAttack():
                                     self.alpha_max * torch.ones(a1.shape)
                                     .to(self.device))
                 x1 = ((x1 + self.eta * d1) * (1 - alpha) +
-                        (im2 + d2 * self.eta) * alpha).clamp(0.0, 1.0)
+                        # (im2 + d2 * self.eta) * alpha).clamp(0.0, 1.0)
+                        (im2 + d2 * self.eta) * alpha).clamp(*self.clamp_limits)
 
+                x1 = self.apply_mask(x1, x)
                 is_adv = self._get_predicted_label(x1) != la2
 
                 if is_adv.sum() > 0:

@@ -49,6 +49,7 @@ def projection_linf(points_to_project, w_hyperplane, b_hyperplane):
 
     lb = lb.long()
 
+    # it seems that these clamping operations only affect the optimal lambda (only clamped on one side)
     if c_l.any():
         lmbd_opt = torch.clamp_min((b[c_l] - sb[c_l, -1]) / (-s[c_l, -1]), min=0).unsqueeze(-1)
         d[c_l] = (2 * a[c_l] - 1) * lmbd_opt

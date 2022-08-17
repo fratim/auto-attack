@@ -47,7 +47,9 @@ class FABAttack_PT(FABAttack):
             seed=0,
             targeted=False,
             device=None,
-            n_target_classes=9):
+            n_target_classes=9,
+            clamp_limits=(0, 1),
+            attack_dimensions=None):
         """ FAB-attack implementation in pytorch """
 
         self.predict = predict
@@ -63,7 +65,9 @@ class FABAttack_PT(FABAttack):
                          seed,
                          targeted,
                          device,
-                         n_target_classes)
+                         n_target_classes,
+                         clamp_limits,
+                         attack_dimensions)
 
     def _predict_fn(self, x):
         return self.predict(x)
