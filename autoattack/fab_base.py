@@ -76,8 +76,6 @@ class FABAttack():
         if self.attack_dimensions is None:
             return x_perturbed
 
-        import pdb
-        pdb.set_trace()
         # TODO make this more efficient, this should be a one liner...
 
         for dim in range(x_perturbed.shape[1]):
