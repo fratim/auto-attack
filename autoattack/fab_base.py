@@ -99,7 +99,7 @@ class FABAttack():
     def get_diff_logits_grads_batch_targeted(self, imgs, la, la_target):
        raise NotImplementedError("Virtual function.")
 
-    def attack_single_run(self, x, y=None, use_rand_start=False, is_targeted=False):
+    def attack_single_run(self, x, y=None, use_rand_start=False, is_targeted=False, additional_info=None):
         """
         :param x:             clean images
         :param y:             clean labels, if None we use the predicted labels
@@ -247,7 +247,15 @@ class FABAttack():
                         (im2 + d2 * self.eta) * alpha).clamp(*self.clamp_limits)
 
                 x1 = self.apply_mask(x1, x)
+
                 is_adv = self._get_predicted_label(x1) != la2
+
+                if is_adv:
+                    p = additional_info(x1)
+                    # print(p)
+
+                    if p < 0.9:
+                        is_adv = torch.tensor([False])
 
                 if is_adv.sum() > 0:
                     ind_adv = is_adv.nonzero().squeeze()
@@ -284,7 +292,7 @@ class FABAttack():
 
         return adv_c
 
-    def perturb(self, x, y):
+    def perturb(self, x, y, additional_info=None):
         if self.device is None:
             self.device = x.device
         adv = x.clone()
@@ -298,12 +306,15 @@ class FABAttack():
 
             if not self.targeted:
                 for counter in range(self.n_restarts):
+                    # print("restart")
                     ind_to_fool = acc.nonzero().squeeze()
                     if len(ind_to_fool.shape) == 0: ind_to_fool = ind_to_fool.unsqueeze(0)
                     if ind_to_fool.numel() != 0:
                         x_to_fool, y_to_fool = x[ind_to_fool].clone(), y[ind_to_fool].clone()
-                        adv_curr = self.attack_single_run(x_to_fool, y_to_fool, use_rand_start=(counter > 0), is_targeted=False)
-
+                        adv_curr = self.attack_single_run(x_to_fool, y_to_fool,
+                                                          use_rand_start=(counter > 0),
+                                                          is_targeted=False,
+                                                          additional_info=additional_info)
                         acc_curr = self._predict_fn(adv_curr).max(1)[1] == y_to_fool
                         if self.norm == 'Linf':
                             res = (x_to_fool - adv_curr).abs().reshape(x_to_fool.shape[0], -1).max(1)[0]
@@ -322,6 +333,7 @@ class FABAttack():
                                 counter, acc.float().mean(), self.eps, time.time() - startt))
 
             else:
+                raise NotImplementedError("Worldmodel aligned mnp attack has not yet been implemented for targeted fab attack (only untargeted so far")
                 for target_class in range(2, self.n_target_classes + 2):
                     self.target_class = target_class
                     for counter in range(self.n_restarts):

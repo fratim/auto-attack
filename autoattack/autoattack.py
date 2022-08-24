@@ -52,7 +52,7 @@ class AutoAttack():
                 device=self.device, logger=self.logger)
             
             from .fab_pt import FABAttack_PT
-            self.fab = FABAttack_PT(self.model, n_restarts=5, n_iter=100, eps=self.epsilon, seed=self.seed,
+            self.fab = FABAttack_PT(self.model, n_restarts=50, n_iter=10, eps=self.epsilon, seed=self.seed,
                 norm=self.norm, verbose=False, device=self.device, clamp_limits=self.clamp_limits, attack_dimensions=self.attack_dimensions)
         
             from .square import SquareAttack
@@ -95,7 +95,7 @@ class AutoAttack():
     def get_seed(self):
         return time.time() if self.seed is None else self.seed
     
-    def run_standard_evaluation(self, x_orig, y_orig, bs=250, return_labels=True, target_label=None):
+    def run_standard_evaluation(self, x_orig, y_orig, bs=250, return_labels=True, target_label=None, additional_info=None):
 
         assert target_label is None or self.attacks_to_run == ['apgd-t']
 
@@ -182,7 +182,7 @@ class AutoAttack():
                         # fab
                         self.fab.targeted = False
                         self.fab.seed = self.get_seed()
-                        adv_curr = self.fab.perturb(x, y)
+                        adv_curr = self.fab.perturb(x, y, additional_info=additional_info)
                     
                     elif attack == 'square':
                         # square
@@ -202,7 +202,7 @@ class AutoAttack():
                         self.fab.targeted = True
                         self.fab.n_restarts = 1
                         self.fab.seed = self.get_seed()
-                        adv_curr = self.fab.perturb(x, y)
+                        adv_curr = self.fab.perturb(x, y, additional_info)
                     
                     else:
                         raise ValueError('Attack not supported')
@@ -259,7 +259,7 @@ class AutoAttack():
         
         return acc.item() / x_orig.shape[0]
         
-    def run_standard_evaluation_individual(self, x_orig, y_orig, bs=250, return_labels=False, target_label=None):
+    def run_standard_evaluation_individual(self, x_orig, y_orig, bs=250, return_labels=False, target_label=None, additional_info=None):
         if self.verbose:
             print('using {} version including {}'.format(self.version,
                 ', '.join(self.attacks_to_run)))
@@ -272,7 +272,12 @@ class AutoAttack():
         for c in l_attacks:
             startt = time.time()
             self.attacks_to_run = [c]
-            x_adv, y_adv = self.run_standard_evaluation(x_orig, y_orig, bs=bs, return_labels=True, target_label=target_label)
+            self.attacks_to_run = [c]
+            x_adv, y_adv = self.run_standard_evaluation(x_orig, y_orig,
+                                                        bs=bs,
+                                                        return_labels=True,
+                                                        target_label=target_label,
+                                                        additional_info=additional_info)
             if return_labels:
                 adv[c] = (x_adv, y_adv)
             else:
